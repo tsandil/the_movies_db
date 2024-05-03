@@ -56,7 +56,9 @@ def transform_mission_data(list_of_mission_data):
     df['added_col1'] = 'Added Column1'
     df['added_col2'] = 'This is latest addition second column.'
 
-    # print(df)
+
+    print(df)
+
     return df
 
 def load_mission_data(df):
@@ -93,7 +95,7 @@ def load_mission_data(df):
 if __name__=='__main__':
     list_of_mission_data = extract_missions_data()
     df = transform_mission_data(list_of_mission_data=list_of_mission_data)
-    load_mission_data(df=df)
+    # load_mission_data(df=df)
 
 
 

@@ -1,4 +1,5 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from sqlalchemy.schema import CreateSchema
 import psycopg2
 
 class PostgresqlDestination:
@@ -10,16 +11,26 @@ class PostgresqlDestination:
         self.db_user_password = 'stratocaster'
         self.engine = create_engine(f'postgresql://{self.db_user_name}:{self.db_user_password}@127.0.0.1:5432/{self.db_name}')
 
-    # def create_schema(self,schema_name):
-    #     with self.engine.connect() as conn:
-    #         conn.execute(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")
+    def create_schema(self,schema_name):
+        with self.engine.connect() as conn:
+            query = f"create schema if not exists {schema_name};"
+            conn.execute(text(query))
+            conn.commit()
+            return conn
 
-
+    def query(self, query):
+        with self.engine.connect() as conn:
+            cur = conn.execute(text(query))
+            return cur
 
     def write_dataframe(self,df,details):
         table_name = details['table_name']
         schema_name = details['schema_name']
-
+        # check if table exists
+        # if exists add column
+        # then load
+        #if not exists columns
+        # then load
         df.to_sql(table_name,schema = schema_name, con = self.engine, if_exists = 'append',index = False)
         
     def close_connection(self):
@@ -37,18 +48,17 @@ class SchemaDriftHandle:
             host = '127.0.0.1',
             port = '5432'
         )
-    
+
     def execute_query(self,query):
         try:
             cur = self.conn.cursor()
             cur.execute(query=query)
             self.conn.commit()
             print(f'Query {query} Executed Successfully.\n')
-            return cur
         except psycopg2.Error as e:
             self.conn.rollback()
             print(f'Error Excuting the query {query}\n: {e}')
-            return None
+        return cur
         
 
     def add_columns(self,details,column_name,column_type):
