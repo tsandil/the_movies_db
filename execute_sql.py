@@ -24,3 +24,8 @@ def get_query():
 if __name__ == '__main__':
     # create_schema('exec_schema_1')
     get_query()
+
+
+    
+
+    

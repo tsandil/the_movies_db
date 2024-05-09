@@ -2,15 +2,13 @@ import requests
 import pandas as pd
 import json
 import space_etl
-from schemahandle_operations import SchemaDriftHandle
-from schemahandle_operations import map_df_dtype_to_postgres
 
 def extract_missions_data():
     list_of_missions = [
         "STS-40",
         "Biosatellite%20III",
-        "Biosatellite%20II",
-        "Cosmos%20782",
+        # "Biosatellite%20II",
+        # "Cosmos%20782",
         # "Cosmos%20936",
         # "Cosmos%201514",
         # "Cosmos%201129",
@@ -56,9 +54,7 @@ def transform_mission_data(list_of_mission_data):
     df['versionInfo'] = df["versionInfo"].apply(parse_json)
     df['parents'] = df["parents"].apply(parse_json)
     df['added_col1'] = 2
-    # df['added_col2'] = 'This is latest addition second column.'
-    # df['added_col3'] = 'This is latest addition third column.'
-    # df['added_col4'] = 2
+    df['added_col2'] = 2.2323
     return df
 
 def load_mission_data(df):
@@ -73,15 +69,7 @@ def load_mission_data(df):
             'db_name':db_name,
             'table_name':table_name
         }
-    
         postgres = space_etl.PostgresqlDestination(db_name=db_name)
-        schema_handle = SchemaDriftHandle(db_name=db_name)
-        columns_to_add = schema_handle.check_schema_drift(df=df,details=details)
-        if columns_to_add:
-            for column_name in columns_to_add:
-                df_datatype = df[column_name].dtype
-                column_type = map_df_dtype_to_postgres(df_datatype)
-                schema_handle.add_columns(details=details,column_name=column_name,column_type=column_type)
 
         postgres.write_dataframe(df=df,details=details)
         postgres.close_connection()
