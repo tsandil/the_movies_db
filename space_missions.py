@@ -6,16 +6,16 @@ import space_etl
 def extract_missions_data():
     list_of_missions = [
         "STS-40",
-        "Biosatellite%20III",
-        # "Biosatellite%20II",
-        # "Cosmos%20782",
-        # "Cosmos%20936",
+        # "Biosatellite%20III",
+        # # "Biosatellite%20II",
+        # # "Cosmos%20782",
+        # # "Cosmos%20936",
         # "Cosmos%201514",
-        # "Cosmos%201129",
+        # # "Cosmos%201129",
         # "Cosmos%201667",
         # "Cosmos%201887",
         # "SpaceX-19",
-        # "SpaceX-21",
+        # # "SpaceX-21",
         # "SpaceX-23",
         # "SpaceX-22"
     ]
@@ -49,18 +49,21 @@ def transform_mission_data(list_of_mission_data):
     def parse_json(val):
         return json.dumps(val)
     
-    df['vehicle'] = df['vehicle'].apply(parse_json)
-    df['people'] = df["people"].apply(parse_json)
-    df['versionInfo'] = df["versionInfo"].apply(parse_json)
-    df['parents'] = df["parents"].apply(parse_json)
-    df['added_col1'] = 2
-    df['added_col2'] = 2.2323
+    # df['vehicle'] = df['vehicle'].apply(parse_json)
+    # df['people'] = df["people"].apply(parse_json)
+    # df['versionInfo'] = df["versionInfo"].apply(parse_json)
+    # df['parents'] = df["parents"].apply(parse_json)
+    df['added_col1']=22
+    df['added_col2']=3.2323
+
+    print("################# MY DF")
+    print(df)
     return df
 
 def load_mission_data(df):
     #Creating schema in postgres named "spacemissions_etl"
     schema_name = 'spacemissions_etl'
-    db_name = 'my_database1'
+    db_name = 'my_database1' 
     table_name = 'space_missions'
 
     try:
@@ -92,4 +95,5 @@ if __name__=='__main__':
         
 
     
-    
+
+
