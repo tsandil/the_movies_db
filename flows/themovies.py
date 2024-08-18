@@ -5,6 +5,7 @@ import json
 from utilities import etl
 from datetime import datetime, timezone
 
+
 def extract_movies():
     base_url = 'https://api.themoviedb.org/3/movie/popular'
     endpoint= '?page=2'

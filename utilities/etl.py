@@ -1,7 +1,7 @@
 import json
-from sqlalchemy import create_engine, text
 import time
-from queries import QUERIES
+from sqlalchemy import create_engine, text
+from .queries import QUERIES
 
 
 class PostgresqlDestination:
