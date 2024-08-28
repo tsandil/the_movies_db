@@ -2,7 +2,8 @@ from setuptools import setup, find_packages
 
 requirements = (
     [
-        "sqlalchemy==1.4.36"
+        "sqlalchemy==1.4.53",
+        "pandas==2.1.4"
     ]
 )
 

@@ -11,7 +11,7 @@ class PostgresqlDestination:
         self.db_name = db_name
         self.db_user_name = 'tsandil'
         self.db_user_password = 'stratocaster'
-        self.engine = create_engine(f'postgresql://{self.db_user_name}:{self.db_user_password}@127.0.0.1:5432/{self.db_name}')
+        self.engine = create_engine(f'postgresql://{self.db_user_name}:{self.db_user_password}@127.0.0.1:5432/{self.db_name}', future=True)
 
     def create_schema(self,schema_name):
         with self.engine.connect() as conn:
@@ -25,7 +25,7 @@ class PostgresqlDestination:
             result = conn.execute(text(query))
             conn.commit()
             return result
-        
+
     def write_dataframe(self, df, details):
         table_name = details['table_name']
         schema_name = details['schema_name']
@@ -138,7 +138,7 @@ class SchemaDriftHandle(PostgresqlDestination):
 
             dest_column_info = self.get_column_info(table_name=table_name,schema_name=schema_name)
 
-            df.to_sql(temp_table, schema = schema_name,con = self.engine,index=False)
+            df.to_sql(temp_table, schema = schema_name, con = conn, index=False)
 
             source_column_info = self.get_column_info(table_name=temp_table, schema_name=schema_name)
 
