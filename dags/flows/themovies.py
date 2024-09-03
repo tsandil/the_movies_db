@@ -1,4 +1,3 @@
-import os
 import requests
 import pandas as pd
 import json
@@ -11,7 +10,7 @@ from airflow.models import Variable
 
 import logging
 
-def extract_movies():
+def extract_movies(ti):
     base_url = 'https://api.themoviedb.org/3/movie/popular'
     endpoint= '?page=2'
     auth_key = Variable.get('the_moviedb_auth_key')
@@ -34,23 +33,30 @@ def extract_movies():
     results = _results['results']
     logger = logging.getLogger(__name__)
     logger.info("This is a log message")
+
+
+    #Pushing the data from API using XCOMS
+    ti.xcom_push("movie_data", results)
+
     return results
 
 
-def transform_data(**kwargs):
+def transform_data(ti):
 
-    result_data = kwargs['ti'].xcom_pull(task_ids='task_extract')
+    result_data = ti.xcom_pull(key = "movie_data", task_ids = "task_extract")
 
     df = pd.DataFrame(result_data)
 
     df['record_loaded_at'] = datetime.now(timezone.utc)
 
+    ti.xcom_push("api_df", df)
+
     return df
 
 
-def load_dataframe(**kwargs):
+def load_dataframe(ti):
 
-    df = kwargs['ti'].xcom_pull(task_ids='task_transform')
+    df = ti.xcom_pull(key="api_df", task_ids = "task_transform")
 
     schema_name = 'themoviedb'
     db_name = 'my_database1' 
@@ -80,10 +86,10 @@ with DAG(
     # default_args=default_args,
     description='A simple DAG implementation',
     tags=['Data_Engineering'],
-    schedule=timedelta(minutes=1),
+    schedule=timedelta(minutes=20),
     # catchup=False
 ):
-    task_extract = PythonOperator(task_id = 'task_extract', python_callable=extract_movies)
+    task_extract = PythonOperator(task_id = 'task_extract', python_callable=extract_movies,provide_context=True)
     task_transform = PythonOperator(task_id = 'task_transform', python_callable=transform_data, provide_context=True)
     task_load= PythonOperator(task_id = 'task_load', python_callable=load_dataframe, provide_context=True)
 
