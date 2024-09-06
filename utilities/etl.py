@@ -2,6 +2,8 @@ import json
 import time
 from sqlalchemy import create_engine, text
 from .queries import QUERIES
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+
 
 
 class PostgresqlDestination:
@@ -11,7 +13,9 @@ class PostgresqlDestination:
         self.db_name = db_name
         self.db_user_name = 'tsandil'
         self.db_user_password = 'stratocaster'
-        self.engine = create_engine(f'postgresql://{self.db_user_name}:{self.db_user_password}@127.0.0.1:5432/{self.db_name}', future=True)
+
+        postgres_hook = PostgresHook(postgres_conn_id='themovies_con')
+        self.engine = postgres_hook.get_sqlalchemy_engine(engine_kwargs={'future':True})
 
     def create_schema(self,schema_name):
         with self.engine.connect() as conn:
@@ -42,7 +46,7 @@ class PostgresqlDestination:
         print(f"Table {table_name} exists: {table_exists}")
         if not table_exists:
             # This will create table on its own.
-            _response = df.to_sql(table_name,schema = schema_name, con = self.engine, if_exists = 'append',index = False)
+            _response = df.to_sql(table_name,schema = schema_name, con = self.engine, if_exists = 'append', index = False)
 
             return _response
 
@@ -138,11 +142,14 @@ class SchemaDriftHandle(PostgresqlDestination):
 
             dest_column_info = self.get_column_info(table_name=table_name,schema_name=schema_name)
 
+
+
             df.to_sql(temp_table, schema = schema_name, con = conn, index=False)
 
             source_column_info = self.get_column_info(table_name=temp_table, schema_name=schema_name)
 
             self.drop_table(table_name=temp_table, schema_name=schema_name)
+            
 
             print(source_column_info)
 

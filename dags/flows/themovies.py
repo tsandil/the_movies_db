@@ -14,7 +14,7 @@ def extract_movies(ti):
     base_url = 'https://api.themoviedb.org/3/movie/popular'
     endpoint= '?page=2'
     auth_key = Variable.get('the_moviedb_auth_key')
-    # auth_key = os.getenv('AUTH_KEY')
+
 
     headers = {
         "accept": "application/json",
@@ -42,25 +42,30 @@ def extract_movies(ti):
 
 
 def transform_data(ti):
-
+    logger = logging.getLogger(__name__)
     result_data = ti.xcom_pull(key = "movie_data", task_ids = "task_extract")
 
     df = pd.DataFrame(result_data)
-
+    
     df['record_loaded_at'] = datetime.now(timezone.utc)
+    _df = df.drop(['genre_ids'], axis=1)
+    ti.xcom_push("api_df", _df)
 
-    ti.xcom_push("api_df", df)
+    logger.info("This is a dataframe", _df)
+    return _df
 
-    return df
 
 
 def load_dataframe(ti):
+    
+    # postgres_hook = PostgresHook(postgres_conn_id='my_postgres_conn')
+    # engine = postgres_hook.get_sqlalchemy_engine()
 
     df = ti.xcom_pull(key="api_df", task_ids = "task_transform")
 
     schema_name = 'themoviedb'
     db_name = 'my_database1' 
-    table_name = 'popular_movies'
+    table_name = 'popular_movies_test'
 
     try:
         details = {
@@ -96,7 +101,7 @@ with DAG(
 
 task_extract >> task_transform >> task_load
 
-# if __name__ == '__main__':
-#     extract_results = extract_movies()
-#     dataframe= transform_data(extract_results)
-#     load_dataframe(dataframe)
+
+
+
+
