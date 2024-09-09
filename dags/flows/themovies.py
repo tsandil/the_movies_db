@@ -12,7 +12,7 @@ import logging
 
 def extract_movies(ti):
     base_url = 'https://api.themoviedb.org/3/movie/popular'
-    endpoint= '?page=2'
+    endpoint= '?page=1'
     auth_key = Variable.get('the_moviedb_auth_key')
 
 
@@ -48,11 +48,17 @@ def transform_data(ti):
     df = pd.DataFrame(result_data)
     
     df['record_loaded_at'] = datetime.now(timezone.utc)
-    _df = df.drop(['genre_ids'], axis=1)
-    ti.xcom_push("api_df", _df)
+    # _df = df.drop(['genre_ids'], axis=1)
+    # df['new_col']=5
 
-    logger.info("This is a dataframe", _df)
-    return _df
+    # Converting genre_ids to json format as it is an array that sqlalchemy engine cant load to postgres using postgres hook due to numpy.ndarray
+
+    df['genre_ids'] = df['genre_ids'].apply(lambda x: json.dumps(x))
+
+    ti.xcom_push("api_df", df)
+
+    logger.info("This is a dataframe", df)
+    return df
 
 
 
@@ -65,13 +71,17 @@ def load_dataframe(ti):
 
     schema_name = 'themoviedb'
     db_name = 'my_database1' 
-    table_name = 'popular_movies_test'
+    table_name = 'popular_movies_test1'
+    dest_table = 'popular_movies'
+    
 
     try:
         details = {
             'schema_name':schema_name,
             'db_name':db_name,
-            'table_name':table_name
+            'table_name':table_name,
+            'dest_table':dest_table
+
         }
         postgres = etl.PostgresqlDestination(db_name=db_name)
 
@@ -91,7 +101,7 @@ with DAG(
     # default_args=default_args,
     description='A simple DAG implementation',
     tags=['Data_Engineering'],
-    schedule=timedelta(minutes=20),
+    schedule=timedelta(minutes=100),
     # catchup=False
 ):
     task_extract = PythonOperator(task_id = 'task_extract', python_callable=extract_movies,provide_context=True)

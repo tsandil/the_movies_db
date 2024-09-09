@@ -31,5 +31,15 @@ QUERIES = {
             column_properties::text as "col_properties"
         from object_construct
         ;    
+    """,
+    'merge_to_table':"""
+
+        MERGE INTO {schema_name}.{dest_table} as t1
+        USING {schema_name}.{table_name} as t2
+        ON t1.id = t2.id
+        WHEN NOT MATCHED THEN
+        INSERT ({insert_columns})
+        VALUES ({values_columns});
+
     """
 }

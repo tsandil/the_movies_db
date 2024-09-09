@@ -1,6 +1,6 @@
 import json
 import time
-from sqlalchemy import create_engine, text
+from sqlalchemy import  text
 from .queries import QUERIES
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
@@ -45,8 +45,12 @@ class PostgresqlDestination:
         table_exists = schema_handle.check_table_exists(details=details)
         print(f"Table {table_name} exists: {table_exists}")
         if not table_exists:
-            # This will create table on its own.
+            # This will create table on its own and load to temp table
             _response = df.to_sql(table_name,schema = schema_name, con = self.engine, if_exists = 'append', index = False)
+
+            # Merging data to the main table
+            schema_handle.merge_tables(details=details)
+            print("Data Merged")
 
             return _response
 
@@ -61,6 +65,9 @@ class PostgresqlDestination:
 
 
         df.to_sql(table_name,schema = schema_name, con = self.engine, if_exists = 'append',index = False)
+        # Merging data to the main table
+        schema_handle.merge_tables(details=details)
+        print("Data Merged")
 
         self.close_connection()
 
@@ -81,6 +88,7 @@ class SchemaDriftHandle(PostgresqlDestination):
         result = cur.fetchone()[0]
         return result
     
+    
     def check_table_exists(self,details):
         table_name = details['table_name']
         schema_name = details['schema_name']
@@ -88,6 +96,7 @@ class SchemaDriftHandle(PostgresqlDestination):
         cur = self.execute_query(query=query)
         result = cur.fetchone()[0]
         return result
+
 
     def create_table(self,df,details):
         table_name = details['table_name']
@@ -109,6 +118,7 @@ class SchemaDriftHandle(PostgresqlDestination):
         self.execute_query(query=query)
         print(f"Table with name {table_name} created...")
 
+
     def select_existing_columns(self,details):
         schema_name = details['schema_name']
         table_name = details['table_name']
@@ -117,10 +127,12 @@ class SchemaDriftHandle(PostgresqlDestination):
         cur = self.execute_query(query=query)
         result = cur.fetchall()
         return result
-    
+
+
     def drop_table(self,table_name,schema_name):
         query = f"DROP TABLE {schema_name}.{table_name}"
         self.execute_query(query=query)
+
 
 
 
@@ -130,9 +142,29 @@ class SchemaDriftHandle(PostgresqlDestination):
         cur = self.execute_query(query=query)
         result = cur.fetchall()
         column_properties = [json.loads(response[0]) for response in result]
-        # print(column_properties)
         return column_properties
     
+    
+    def merge_tables(self, details):
+        table_name = details['table_name']
+        dest_table = details['dest_table']
+        schema_name = details['schema_name']
+        columns_info = self.get_column_info(table_name=table_name, schema_name=schema_name)
+        column_names = [col['column_name'] for col in columns_info]
+
+        # Create the dynamic parts for the query
+        column_definitions = ", ".join([f"{col['column_name']} {col['data_type']}" for col in columns_info])
+        insert_columns = ", ".join(column_names)
+        values_columns = ", ".join([f"t2.{col}" for col in column_names])
+
+        query1 = f"""CREATE TABLE IF NOT EXISTS {schema_name}.{dest_table} ({column_definitions});"""
+        self.execute_query(query=query1)
+        
+        query2 = f"{QUERIES['merge_to_table']}".format(schema_name = schema_name, dest_table = dest_table, table_name = table_name, insert_columns = insert_columns, values_columns = values_columns)
+        self.execute_query(query=query2)
+
+    
+
     def check_schema_drift(self, df, details):
         with self.engine.connect() as conn:
             table_name = details['table_name']
@@ -142,15 +174,12 @@ class SchemaDriftHandle(PostgresqlDestination):
 
             dest_column_info = self.get_column_info(table_name=table_name,schema_name=schema_name)
 
-
-
             df.to_sql(temp_table, schema = schema_name, con = conn, index=False)
 
             source_column_info = self.get_column_info(table_name=temp_table, schema_name=schema_name)
 
             self.drop_table(table_name=temp_table, schema_name=schema_name)
             
-
             print(source_column_info)
 
             dest_col_names = [col["column_name"] for col in dest_column_info]
@@ -176,9 +205,12 @@ class SchemaDriftHandle(PostgresqlDestination):
     def handle_schema_drift(self, df, details, columns_to_add, modified_cols):
         schema_name = details['schema_name']
         table_name = details['table_name']
+        dest_table = details['dest_table']
         if columns_to_add:
             for data in columns_to_add:
-                self.add_columns(details=details, column_name=data["column_name"], column_type=data["data_type"])
+                self.add_columns(schema_name=schema_name, table_name=table_name, column_name=data["column_name"], column_type=data["data_type"])
+                self.add_columns(schema_name=schema_name, table_name=dest_table, column_name=data["column_name"], column_type=data["data_type"])
+                
 
 
         if modified_cols:
@@ -189,9 +221,8 @@ class SchemaDriftHandle(PostgresqlDestination):
                 df.rename(columns = {data["column_name"]:f"{data['column_name']}_{data['data_type']}"}, inplace = True)
                 return cur
 
-    def add_columns(self, details,column_name, column_type):
-        schema_name = details['schema_name']
-        table_name = details['table_name']
+
+    def add_columns(self, schema_name, table_name ,column_name, column_type):
         query = f"ALTER TABLE {schema_name}.{table_name} ADD COLUMN {column_name} {column_type};"
 
         cur = self.execute_query(query=query)
