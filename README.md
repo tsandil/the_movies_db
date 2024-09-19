@@ -7,7 +7,7 @@ Features
 ================
 
 This ETL project contains the following features :
-- API Integration : Extracting popular movies data from [The Movie Database (TMDB) API](https://www.themoviedb.org/)
+- API Integration : Extracting popular movies data from [The Movie Database (TMDB) API](https://developer.themoviedb.org/docs/getting-started)
 - Data Transformation : Cleaning and Transforming the data, including Timestamps and JSON formatting for specific columns. And, converting the extracted data into Pandas Dataframes.
 - Schema Drift - Detecting Structural Schema Drift in the target PostgreSQL database and handling structural schema drifts by dynamically adding/removing columns and/or managing data-type changes.
 - Database Loading : Loads data into a PostgreSQL database, managing schema and merging data into the target table.
@@ -26,9 +26,8 @@ Prerequisites
 ===========================
 
 1. PostgreSQL Database : Ensure PostgreSQL is installed and running.
-
 2. Airflow : Apache Airflow is used for Orchestration.
-- Install Airflow : pip install apache-airflow
+    - Install Airflow with [PYPI](https://airflow.apache.org/docs/apache-airflow/stable/installation/installing-from-pypi.html)
 
 3. Python Libraries : The following libraries has been used
 - ```requests```
@@ -66,3 +65,21 @@ The Airflow DAG consists of three tasks :
 3. **task_load** : Loads the dataframe into PostgreSQL database while detecting Structural Schema Drift and Handling them.
 
 
+Connections
+=================================
+1. **Connection to API**
+2. **Connection to PostgreSQL**
+
+
+
+
+File Structure
+=================================
+- ```dags/flows/themovie.py``` - a python script that extracts data from an API, then transforms using pandas and finally loads to PostgreSQL, orchestrated as tasks using Apache Airflow.
+- ```utilities/etl.py```
+- ```utilities/queries.py```
+- ```.dockerignore``` - 
+- ```Dockerfile``` - a text document that contains all the instructions a user could call on the command line to assemble an image.
+- ```.gitignore``` - a text document that specifies files that Git should ignore intentionally.
+- ```requirements.txt``` - a text document that contains all the libraries required to execute the code. 
+- ```setup.py```

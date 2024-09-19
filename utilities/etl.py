@@ -18,6 +18,13 @@ class PostgresqlDestination:
         self.engine = postgres_hook.get_sqlalchemy_engine(engine_kwargs = {'future':True})
 
     def create_schema(self, schema_name):
+        """
+        This function creates schema in Postgres
+        Args:
+            schema_name: Takes name of schema
+        Returns:
+            conn:
+        """
         with self.engine.connect() as conn:
             query = f"create schema if not exists {schema_name};"
             conn.execute(text(query))
