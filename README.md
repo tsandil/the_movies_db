@@ -1,48 +1,68 @@
-Overview
+Automated ETL Pipeline for TheMovieDB Using Apache Airflow and PostgreSQL
 ========
 
-Welcome to Astronomer! This project was generated after you ran 'astro dev init' using the Astronomer CLI. This readme describes the contents of the project, as well as how to run Apache Airflow on your local machine.
+This project implements an ETL(Extract, Transform, Load) pipeline for fetching popular movies from [The Movie Database (TMDB) API](https://www.themoviedb.org/). This pipeline is designed to extract data from API, transform using python code, and loaded into a PostgreSQL Database. This ETL pipeline detects and handles structural schema drift during the Load phase and uses Apache Airflow as an Orchestration tool.
 
-Project Contents
+Features
 ================
 
-Your Astro project contains the following files and folders:
+This ETL project contains the following features :
+- API Integration : Extracting popular movies data from [The Movie Database (TMDB) API](https://www.themoviedb.org/)
+- Data Transformation : Cleaning and Transforming the data, including Timestamps and JSON formatting for specific columns. And, converting the extracted data into Pandas Dataframes.
+- Schema Drift - Detecting Structural Schema Drift in the target PostgreSQL database and handling structural schema drifts by dynamically adding/removing columns and/or managing data-type changes.
+- Database Loading : Loads data into a PostgreSQL database, managing schema and merging data into the target table.
+- Orchestration : Managed by Apache Airflow for reliable and scalable execution.
 
-- dags: This folder contains the Python files for your Airflow DAGs. By default, this directory includes one example DAG:
-    - `example_astronauts`: This DAG shows a simple ETL pipeline example that queries the list of astronauts currently in space from the Open Notify API and prints a statement for each astronaut. The DAG uses the TaskFlow API to define tasks in Python, and dynamic task mapping to dynamically print a statement for each astronaut. For more on how this DAG works, see our [Getting started tutorial](https://www.astronomer.io/docs/learn/get-started-with-airflow).
-- Dockerfile: This file contains a versioned Astro Runtime Docker image that provides a differentiated Airflow experience. If you want to execute other commands or overrides at runtime, specify them here.
-- include: This folder contains any additional files that you want to include as part of your project. It is empty by default.
-- packages.txt: Install OS-level packages needed for your project by adding them to this file. It is empty by default.
-- requirements.txt: Install Python packages needed for your project by adding them to this file. It is empty by default.
-- plugins: Add custom or community plugins for your project to this file. It is empty by default.
-- airflow_settings.yaml: Use this local-only file to specify Airflow Connections, Variables, and Pools instead of entering them in the Airflow UI as you develop DAGs in this project.
+Project Goals
+================
+1. **Data Ingestion** - Create a data ingestion pipeline to extract data from  [The Movie Database (TMDB) API](https://www.themoviedb.org/)
+2. **Data Storage** - Create a data storage repository using PostgreSQL.
+3. **Data Transformation**  - Create ETL job to extract the data, do simple transformations and load the clean data using Airflow.
+4. **Data Pipeline** - Create a data pipeline written in Python that extracts data from API calls and store it in PostgreSQL.
+5. **Pipeline Automation** - Create scheduling service using Apace Airflow to trigger the data pipeline and automate the process.
 
-Deploy Your Project Locally
+
+Prerequisites
 ===========================
 
-1. Start Airflow on your local machine by running 'astro dev start'.
+1. PostgreSQL Database : Ensure PostgreSQL is installed and running.
 
-This command will spin up 4 Docker containers on your machine, each for a different Airflow component:
+2. Airflow : Apache Airflow is used for Orchestration.
+- Install Airflow : pip install apache-airflow
 
-- Postgres: Airflow's Metadata Database
-- Webserver: The Airflow component responsible for rendering the Airflow UI
-- Scheduler: The Airflow component responsible for monitoring and triggering tasks
-- Triggerer: The Airflow component responsible for triggering deferred tasks
-
-2. Verify that all 4 Docker containers were created by running 'docker ps'.
-
-Note: Running 'astro dev start' will start your project with the Airflow Webserver exposed at port 8080 and Postgres exposed at port 5432. If you already have either of those ports allocated, you can either [stop your existing Docker containers or change the port](https://www.astronomer.io/docs/astro/cli/troubleshoot-locally#ports-are-not-available-for-my-local-airflow-webserver).
-
-3. Access the Airflow UI for your local Airflow project. To do so, go to http://localhost:8080/ and log in with 'admin' for both your Username and Password.
-
-You should also be able to access your Postgres Database at 'localhost:5432/postgres'.
-
-Deploy Your Project to Astronomer
+3. Python Libraries : The following libraries has been used
+- ```requests```
+- ```pandas```
+- ```sqlalchemy```
+- ```json```
+- ```airflow```
+- ```PostgresHook``` from ```airflow.providers.postgres```
+- **Install Dependencies** : ```pip install -r requirements.txt```
+  
+  
+Configuration
 =================================
+1. **API Key** : Add your TheMovieDB API key as an Airflow variable named ```the_moviedb_auth_key``` in Airflow's Admin > Variables.
 
-If you have an Astronomer account, pushing code to a Deployment on Astronomer is simple. For deploying instructions, refer to Astronomer documentation: https://www.astronomer.io/docs/astro/deploy-code/
+2. **PostgreSQL Connection** : Set up a PostgreSQL connection in Airflow with the connection ID ```themovies_con```.
 
-Contact
+How to Run
 =======
+1. Clone the repository and navigate to the project directory.
 
-The Astronomer CLI is maintained with love by the Astronomer team. To report a bug or suggest a change, reach out to our support.
+2. **Start Airflow**  with **Astro CLI** : ```astro dev start```
+
+3. Trigger the DAG : 
+- Access the UI at ```http://localhost:8080```
+- Trigger the DAG called ```themoviedb_dag```.
+
+4. **Stop Airflow** with **Astro CLI** : ```astro dev stop```
+
+Airflow DAG
+=================================
+The Airflow DAG consists of three tasks : 
+1. **task_extract** : This task calls the TMDB API and fetches all the popular movies data.
+2. **task_transform** : Transforms the retrieved data from API, converting to Dataframe using pandas, adding timestamps and formatting the JSON fields.
+3. **task_load** : Loads the dataframe into PostgreSQL database while detecting Structural Schema Drift and Handling them.
+
+

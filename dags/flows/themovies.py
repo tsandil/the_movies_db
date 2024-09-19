@@ -12,7 +12,7 @@ import logging
 
 def extract_movies(ti):
     base_url = 'https://api.themoviedb.org/3/movie/popular'
-    endpoint= '?page=1'
+    endpoint= '?page=2'
     auth_key = Variable.get('the_moviedb_auth_key')
 
 
@@ -49,7 +49,7 @@ def transform_data(ti):
     
     df['record_loaded_at'] = datetime.now(timezone.utc)
     # _df = df.drop(['genre_ids'], axis=1)
-    # df['new_col']=5
+    # df['new_col'] = 22.9
 
     # Converting genre_ids to json format as it is an array that sqlalchemy engine cant load to postgres using postgres hook due to numpy.ndarray
 
@@ -67,7 +67,7 @@ def load_dataframe(ti):
     # postgres_hook = PostgresHook(postgres_conn_id='my_postgres_conn')
     # engine = postgres_hook.get_sqlalchemy_engine()
 
-    df = ti.xcom_pull(key="api_df", task_ids = "task_transform")
+    df = ti.xcom_pull(key = "api_df", task_ids = "task_transform")
 
     schema_name = 'themoviedb'
     db_name = 'my_database1' 
@@ -83,9 +83,9 @@ def load_dataframe(ti):
             'dest_table':dest_table
 
         }
-        postgres = etl.PostgresqlDestination(db_name=db_name)
+        postgres = etl.PostgresqlDestination(db_name = db_name)
 
-        postgres.write_dataframe(df=df,details=details)
+        postgres.write_dataframe(df = df,details = details)
 
         print(f'Data was loaded successfully....')
     except Exception as e:
@@ -104,9 +104,9 @@ with DAG(
     schedule=timedelta(minutes=100),
     # catchup=False
 ):
-    task_extract = PythonOperator(task_id = 'task_extract', python_callable=extract_movies,provide_context=True)
-    task_transform = PythonOperator(task_id = 'task_transform', python_callable=transform_data, provide_context=True)
-    task_load= PythonOperator(task_id = 'task_load', python_callable=load_dataframe, provide_context=True)
+    task_extract = PythonOperator(task_id = 'task_extract', python_callable = extract_movies, provide_context = True)
+    task_transform = PythonOperator(task_id = 'task_transform', python_callable=transform_data, provide_context = True)
+    task_load= PythonOperator(task_id = 'task_load', python_callable = load_dataframe, provide_context = True)
 
 
 task_extract >> task_transform >> task_load
