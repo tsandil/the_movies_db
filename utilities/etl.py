@@ -33,6 +33,13 @@ class PostgresqlDestination:
         
     
     def merge_tables(self, details):
+        """
+        
+        This function merges the two tables i.e. Destination Table and temp table to ensure that no duplicate data is inserted into the Destination Table.
+        Takes the Merge query from utilities.queries.py
+
+        """
+
         table_name = details['table_name']
         dest_table = details['dest_table']
         schema_name = details['schema_name']
@@ -44,11 +51,15 @@ class PostgresqlDestination:
         column_definitions = ", ".join([f"{col['column_name']} {col['data_type']}" for col in columns_info])
         insert_columns = ", ".join(column_names)
         values_columns = ", ".join([f"t2.{col}" for col in column_names])
+        update_columns = ", ".join([f"{col} = t2.{col}" for col in column_names if col != 'record_loaded_at'])
+
+        print(f"\n\nThese are the updated-columns query part {update_columns}")
+
 
         query1 = f"""CREATE TABLE IF NOT EXISTS {schema_name}.{dest_table} ({column_definitions});"""
         self.execute_query(query=query1)
 
-        query2 = f"{QUERIES['merge_to_table']}".format(schema_name = schema_name, dest_table = dest_table, table_name = table_name, insert_columns = insert_columns, values_columns = values_columns)
+        query2 = f"{QUERIES['merge_to_table']}".format(schema_name = schema_name, dest_table = dest_table, table_name = table_name, insert_columns = insert_columns, values_columns = values_columns, update_columns = update_columns)
         self.execute_query(query=query2)
     
 
@@ -59,6 +70,11 @@ class PostgresqlDestination:
             return result
 
     def write_dataframe(self, df, details):
+        """
+        This function loads the pandas dataframe into the PostgreSQL table.
+        This functions checks, if the necessary schema,table exists. Also, checks for structural schema drift and  handles accordingly.
+        
+        """
         table_name = details['table_name']
         schema_name = details['schema_name']
 
@@ -74,15 +90,15 @@ class PostgresqlDestination:
         print(f"Table {table_name} exists: {table_exists}")
         if not table_exists:
             # This will create table on its own and load to temp table
-            _response = df.to_sql(table_name,schema = schema_name, con = self.engine, if_exists = 'append', index = False)
+            df.to_sql(table_name,schema = schema_name, con = self.engine, if_exists = 'append', index = False)
 
             # Merging data to the main table
             self.merge_tables(details = details)
             print("Data Merged")
-            schema_handle.drop_table(table_name=table_name, schema_name= schema_name)
 
 
-            return _response
+
+            # return _response
 
         print('\n\nChecking schema drift')
         columns_to_add, modified_cols = schema_handle.check_schema_drift(df = df,details = details)
@@ -98,7 +114,9 @@ class PostgresqlDestination:
         # Merging data to the main table
         self.merge_tables(details = details)
         print("Data Merged")
+
         schema_handle.drop_table(table_name=table_name, schema_name= schema_name)
+
         
 
         self.close_connection()
@@ -177,24 +195,7 @@ class SchemaDriftHandle(PostgresqlDestination):
         return column_properties
     
     
-    # def merge_tables(self, details):
-    #     table_name = details['table_name']
-    #     dest_table = details['dest_table']
-    #     schema_name = details['schema_name']
-    #     columns_info = self.get_column_info(table_name = table_name, schema_name = schema_name)
-    #     column_names = [col['column_name'] for col in columns_info]
-
-    #     # Create the dynamic parts for the query
-    #     column_definitions = ", ".join([f"{col['column_name']} {col['data_type']}" for col in columns_info])
-    #     insert_columns = ", ".join(column_names)
-    #     values_columns = ", ".join([f"t2.{col}" for col in column_names])
-
-    #     query1 = f"""CREATE TABLE IF NOT EXISTS {schema_name}.{dest_table} ({column_definitions});"""
-    #     self.execute_query(query=query1)
-
-    #     query2 = f"{QUERIES['merge_to_table']}".format(schema_name = schema_name, dest_table = dest_table, table_name = table_name, insert_columns = insert_columns, values_columns = values_columns)
-    #     self.execute_query(query=query2)
-
+    
     
 
     def check_schema_drift(self, df, details):

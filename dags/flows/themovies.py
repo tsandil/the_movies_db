@@ -11,8 +11,8 @@ from airflow.models import Variable
 import logging
 
 def extract_movies(ti):
-    base_url = 'https://api.themoviedb.org/3/movie/popular'
-    endpoint= '?page=2'
+    base_url = 'https://api.themoviedb.org/3/movie/'
+    endpoint= 'popular'
     auth_key = Variable.get('the_moviedb_auth_key')
 
 
@@ -22,18 +22,26 @@ def extract_movies(ti):
     }
     url = base_url + endpoint
 
-    response = requests.get(url=url, headers=headers)
+    results = []
 
-    if response.status_code != 200:
-        print(f"Error in getting API data: {response.text}")
-        print(f"Status Code: {response.status_code}")
+    while True:
+        print(f"The URL is : \n{url}")
+        response = requests.get(url=url, headers=headers)
+
+        if response.status_code == 400 and json.loads(response.text)["success"] is False:
+            break
+        
+        if response.status_code != 200:
+            raise Exception(f"The status code is {response.status_code} and message is {response.text} and {type(response.text)}")
+        
     
-    _results = json.loads(response.text)
+        _results = response.json()
+        results += _results["results"]
+        page_num = _results["page"]+50
+        url = f"{base_url}{endpoint}?page={page_num}"
 
-    results = _results['results']
-    logger = logging.getLogger(__name__)
-    logger.info("This is a log message")
-
+    # logger = logging.getLogger(__name__)
+    # logger.info("This is a log message")
 
     #Pushing the data from API using XCOMS
     ti.xcom_push("movie_data", results)
@@ -110,6 +118,9 @@ with DAG(
 
 
 task_extract >> task_transform >> task_load
+
+
+
 
 
 

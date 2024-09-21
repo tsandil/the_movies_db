@@ -35,8 +35,12 @@ QUERIES = {
     'merge_to_table':"""
 
         MERGE INTO {schema_name}.{dest_table} as t1
-        USING {schema_name}.{table_name} as t2
+        USING 
+        (SELECT DISTINCT ON (id) * FROM {schema_name}.{table_name}) as t2
         ON t1.id = t2.id
+        WHEN MATCHED THEN
+        UPDATE SET
+        {update_columns}
         WHEN NOT MATCHED THEN
         INSERT ({insert_columns})
         VALUES ({values_columns});
