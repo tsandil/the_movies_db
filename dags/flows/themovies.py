@@ -118,11 +118,3 @@ with DAG(
 
 
 task_extract >> task_transform >> task_load
-
-
-
-
-
-
-
-
