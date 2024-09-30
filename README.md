@@ -17,9 +17,9 @@ Project Goals
 ================
 1. **Data Ingestion** - Create a data ingestion pipeline to extract data from  [The Movie Database (TMDB) API](https://developer.themoviedb.org/reference/movie-popular-list)
 2. **Data Storage** - Create a data storage repository using PostgreSQL.
-3. **Data Transformation**  - Create ETL job to extract the data, do simple transformations and load the clean data using Airflow.
-4. **Data Pipeline** - Create a data pipeline written in Python that extracts data from API calls and store it in PostgreSQL.
-5. **Pipeline Automation** - Create scheduling service using Apace Airflow to trigger the data pipeline and automate the process.
+3. **Data Transformation**  - Add timestamps and formatting specific fields and use of Pandas Dataframes.
+4. **Data Pipeline** - Create a data pipeline written in Python that extracts data from API calls, simple transformation and finally load the dataframe in PostgreSQL.
+5. **Pipeline Automation** - Create scheduling service using Apace Airflow to trigger the Data Pipeline and automate the process.
 
 
 Prerequisites
