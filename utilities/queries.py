@@ -35,8 +35,8 @@ QUERIES = {
     'merge_to_table':"""
 
         MERGE INTO {schema_name}.{dest_table} as t1
-        USING 
-        (SELECT  * FROM {schema_name}.{table_name}) as t2
+        USING
+        (SELECT  DISTINCT ON (id) * FROM {schema_name}.{table_name} ORDER BY id) as t2
         ON t1.id = t2.id
         WHEN MATCHED  and {update_cond} THEN
         UPDATE SET

@@ -37,7 +37,7 @@ def extract_movies(ti):
     
         _results = response.json()
         results += _results["results"]
-        page_num = _results["page"]+50
+        page_num = _results["page"]+20
         url = f"{base_url}{endpoint}?page={page_num}"
 
     # logger = logging.getLogger(__name__)
