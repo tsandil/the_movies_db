@@ -37,11 +37,10 @@ def extract_movies(ti):
     
         _results = response.json()
         results += _results["results"]
-        page_num = _results["page"]+20
+        page_num = _results["page"]+5
         url = f"{base_url}{endpoint}?page={page_num}"
 
-    # logger = logging.getLogger(__name__)
-    # logger.info("This is a log message")
+
 
     #Pushing the data from API using XCOMS
     ti.xcom_push("movie_data", results)
@@ -56,8 +55,7 @@ def transform_data(ti):
     df = pd.DataFrame(result_data)
     
     df['record_loaded_at'] = datetime.now(timezone.utc)
-    # _df = df.drop(['genre_ids'], axis=1)
-    # df['new_col'] = 22.9
+
 
     # Converting genre_ids to json format as it is an array that sqlalchemy engine cant load to postgres using postgres hook due to numpy.ndarray
 
@@ -74,26 +72,30 @@ def load_dataframe(ti):
     
     # postgres_hook = PostgresHook(postgres_conn_id='my_postgres_conn')
     # engine = postgres_hook.get_sqlalchemy_engine()
+    logger = logging.getLogger(__name__)
 
     df = ti.xcom_pull(key = "api_df", task_ids = "task_transform")
 
     schema_name = 'themoviedb'
     db_name = 'my_database1' 
-    table_name = 'popular_movies_test1'
-    dest_table = 'popular_movies'
-    
+    # temp_table = 'popular_movies_test1' yo janu bhanyena
+    table_name = 'popular_movies'
+    primary_key = 'id'
+
 
     try:
         details = {
-            'schema_name':schema_name,
-            'db_name':db_name,
-            'table_name':table_name,
-            'dest_table':dest_table
-
+            'schema_name': schema_name,
+            'db_name': db_name,
+            'table_name': table_name,
+            'primary_key': primary_key
         }
+
         postgres = etl.PostgresqlDestination(db_name = db_name)
 
-        postgres.write_dataframe(df = df,details = details)
+        # postgres.write_dataframe(df = _df, details = details)
+        postgres.merge_tables(df = df, details = details) 
+        
 
         print(f'Data was loaded successfully....')
     except Exception as e:

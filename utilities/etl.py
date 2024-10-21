@@ -32,70 +32,29 @@ class PostgresqlDestination:
             conn.commit()
             return conn
 
-    def merge_tables(self, details):
+    def merge_tables(self,df, details):
         """
 
-        This function merges the two tables i.e. Destination Table and temp table to ensure that no duplicate data is inserted into the Destination Table.
+        This function merges the two tables i.e. Destination Table and Temporary Table to ensure that no duplicate data is inserted into the Destination Table.
         Takes the Merge query from utilities.queries.py
+        Checks for schema drift if the table exists in PostgreSQL
+        Handles Schema Drift if exists.
 
         """
 
-        table_name = details["table_name"]
-        dest_table = details["dest_table"]
-        schema_name = details["schema_name"]
-        schema_handle = SchemaDriftHandle(db_name=self.db_name)
-        columns_info = schema_handle.get_column_info(
-            table_name=table_name, schema_name=schema_name
-        )
-        column_names = [col["column_name"] for col in columns_info]
 
-        # Create the dynamic parts for the query
-        column_definitions = ", ".join(
-            [f"{col['column_name']} {col['data_type']}" for col in columns_info]
-        )
-        insert_columns = ", ".join(column_names)
-        values_columns = ", ".join([f"t2.{col}" for col in column_names])
-        update_cond = " OR ".join(
-            [f"t1.{col} != t2.{col} OR (t1.{col} is null and t2.{col} is not null) OR (t1.{col} is not null and t2.{col} is null)\n" for col in column_names if col!="record_loaded_at"]
-        )
-        update_columns = ", ".join(
-            [f"{col} = t2.{col}" for col in column_names]
-        )
 
-        print(f"\n\nThese are the updated-columns query part {update_columns}")
+        table_name = details['table_name']
+        
+        schema_name = details['schema_name']
+        primary_key =details['primary_key']
 
-        create_table = f"""CREATE TABLE IF NOT EXISTS {schema_name}.{dest_table} ({column_definitions});"""
-        self.execute_query(query=create_table)
+        timestamp = int(time.time())
 
-        print(f"\ncheck this : \n{update_cond}")
+        temp_table = f"temp_{table_name}_{timestamp}"
+        
 
-        merge_query = f"{QUERIES['merge_to_table']}".format(
-            schema_name=schema_name,
-            dest_table=dest_table,
-            table_name=table_name,
-            insert_columns=insert_columns,
-            values_columns=values_columns,
-            update_columns=update_columns,
-            update_cond = update_cond,
-        )
-        print(f"final \n {merge_query}")
-        self.execute_query(query=merge_query)
-
-    def execute_query(self, query):
-        with self.engine.connect() as conn:
-            result = conn.execute(text(query))
-            conn.commit()
-            return result
-
-    def write_dataframe(self, df, details):
-        """
-        This function loads the pandas dataframe into the PostgreSQL table.
-        This functions checks, if the necessary schema,table exists. Also, checks for structural schema drift and  handles accordingly.
-
-        """
-        table_name = details["table_name"]
-        schema_name = details["schema_name"]
-
+        
         schema_handle = SchemaDriftHandle(db_name=self.db_name)
 
         # Checking if schema exists/not.
@@ -109,19 +68,14 @@ class PostgresqlDestination:
         if not table_exists:
             # This will create table on its own and load to temp table
             df.drop_duplicates(inplace=True)
-            df.to_sql(
+            response = df.to_sql(
                 table_name,
                 schema=schema_name,
                 con=self.engine,
                 if_exists="append",
                 index=False,
             )
-
-            # Merging data to the main table
-            self.merge_tables(details=details)
-            print("Data Merged")
-
-            # return _response
+            return response
 
         print("\n\nChecking schema drift")
         columns_to_add, modified_cols = schema_handle.check_schema_drift(
@@ -140,7 +94,117 @@ class PostgresqlDestination:
 
         df.drop_duplicates(inplace=True)
         df.to_sql(
-            table_name,
+            temp_table,
+            schema=schema_name,
+            con=self.engine,
+            if_exists="append",
+            index=False,
+        )
+
+        columns_info = schema_handle.get_column_info(
+            table_name=temp_table, schema_name=schema_name
+        )
+        column_names = [col["column_name"] for col in columns_info]
+
+        # Create the dynamic parts for the query
+        column_definitions = ", ".join(
+            [f"{col['column_name']} {col['data_type']}" for col in columns_info]
+        )
+        insert_columns = ", ".join(column_names)
+        values_columns = ", ".join([f"t2.{col}" for col in column_names])
+        update_cond = " OR ".join(
+            [f"t1.{col} != t2.{col} OR (t1.{col} is null and t2.{col} is not null) OR (t1.{col} is not null and t2.{col} is null)\n" for col in column_names if col!="record_loaded_at"]
+        )
+        update_columns = ", ".join(
+            [f"{col} = t2.{col}" for col in column_names]
+        )
+
+        print(f"\n\nThese are the updated-columns query part {update_columns}")
+
+        create_table = f"""CREATE TABLE IF NOT EXISTS {schema_name}.{table_name} ({column_definitions});"""
+        self.execute_query(query=create_table)
+
+        print(f"\ncheck this : \n{update_cond}")
+
+        merge_query = f"{QUERIES['merge_to_table']}".format(
+            schema_name=schema_name,
+            primary_key = primary_key,
+            dest_table=table_name,
+            table_name=temp_table,
+            insert_columns=insert_columns,
+            values_columns=values_columns,
+            update_columns=update_columns,
+            update_cond = update_cond,
+        )
+        print(f"final \n {merge_query}")
+        self.execute_query(query=merge_query)
+
+        schema_handle.drop_table(table_name = temp_table, schema_name = schema_name)
+
+        self.close_connection()
+
+    def execute_query(self, query):
+        with self.engine.connect() as conn:
+            result = conn.execute(text(query))
+            conn.commit()
+            return result
+
+    def write_dataframe(self, df, details):
+        """
+        This function loads the pandas dataframe into the PostgreSQL table.
+        This functions checks, if the necessary schema,table exists. Also, checks for structural schema drift and  handles accordingly.
+
+        """
+        table_name = details["table_name"]
+        schema_name = details["schema_name"]
+        timestamp = int(time.time())
+        temp_table = f"temp_{table_name}_{timestamp}"
+
+        schema_handle = SchemaDriftHandle(db_name=self.db_name)
+
+        # Checking if schema exists/not.
+        schema_exists = schema_handle.check_schema_exists(details=details)
+        if not schema_exists:
+            self.create_schema(schema_name=schema_name)
+
+        # Checking if table exists in the schema or not.
+        table_exists = schema_handle.check_table_exists(details=details)
+        print(f"Table {table_name} exists: {table_exists}")
+        if not table_exists:
+            # This will create table on its own and load to temp table
+            df.drop_duplicates(inplace=True)
+            response = df.to_sql(
+                table_name,
+                schema=schema_name,
+                con=self.engine,
+                if_exists="append",
+                index=False,
+            )
+
+            # Merging data to the main table
+            self.merge_tables(details=details)
+            print("Data Merged")
+
+            return response
+
+        print("\n\nChecking schema drift")
+        columns_to_add, modified_cols = schema_handle.check_schema_drift(
+            df=df, details=details
+        )
+        print(f"\n\nCols to add \n\n{columns_to_add}")
+        print(f"\n\nCols to modify \n\n{modified_cols}")
+
+        if columns_to_add or modified_cols:
+            schema_handle.handle_schema_drift(
+                df=df,
+                details=details,
+                columns_to_add=columns_to_add,
+                modified_cols=modified_cols,
+            )
+
+        df.drop_duplicates(inplace=True)
+        df.to_sql(
+            temp_table,
             schema=schema_name,
             con=self.engine,
             if_exists="append",
@@ -150,7 +214,7 @@ class PostgresqlDestination:
         self.merge_tables(details=details)
         print("Data Merged")
 
-        schema_handle.drop_table(table_name=table_name, schema_name=schema_name)
+        schema_handle.drop_table(table_name=temp_table, schema_name=schema_name)
 
         self.close_connection()
 
