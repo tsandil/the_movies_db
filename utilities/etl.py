@@ -18,20 +18,6 @@ class PostgresqlDestination:
             engine_kwargs={"future": True}
         )
 
-    def create_schema(self, schema_name):
-        """
-        This function creates schema in Postgres
-        Args:
-            schema_name: Takes name of schema
-        Returns:
-            conn:
-        """
-        with self.engine.connect() as conn:
-            query = f"create schema if not exists {schema_name};"
-            conn.execute(text(query))
-            conn.commit()
-            return conn
-
     def merge_tables(self,df, details):
         """
 
@@ -56,14 +42,15 @@ class PostgresqlDestination:
 
         
         schema_handle = SchemaDriftHandle(db_name=self.db_name)
+        postgres_op = PostgresOperations(db_name=self.db_name)
 
         # Checking if schema exists/not.
-        schema_exists = schema_handle.check_schema_exists(details=details)
+        schema_exists = postgres_op.check_schema_exists(details=details)
         if not schema_exists:
-            self.create_schema(schema_name=schema_name)
+            postgres_op.create_schema(schema_name=schema_name)
 
         # Checking if table exists in the schema or not.
-        table_exists = schema_handle.check_table_exists(details=details)
+        table_exists = postgres_op.check_table_exists(details=details)
         print(f"Table {table_name} exists: {table_exists}")
         if not table_exists:
             # This will create table on its own and load to temp table
@@ -101,7 +88,7 @@ class PostgresqlDestination:
             index=False,
         )
 
-        columns_info = schema_handle.get_column_info(
+        columns_info = postgres_op.get_column_info(
             table_name=temp_table, schema_name=schema_name
         )
         column_names = [col["column_name"] for col in columns_info]
@@ -122,7 +109,7 @@ class PostgresqlDestination:
         print(f"\n\nThese are the updated-columns query part {update_columns}")
 
         create_table = f"""CREATE TABLE IF NOT EXISTS {schema_name}.{table_name} ({column_definitions});"""
-        self.execute_query(query=create_table)
+        postgres_op.execute_query(query=create_table)
 
         print(f"\ncheck this : \n{update_cond}")
 
@@ -137,17 +124,11 @@ class PostgresqlDestination:
             update_cond = update_cond,
         )
         print(f"final \n {merge_query}")
-        self.execute_query(query=merge_query)
+        postgres_op.execute_query(query=merge_query)
 
-        schema_handle.drop_table(table_name = temp_table, schema_name = schema_name)
+        postgres_op.drop_table(table_name = temp_table, schema_name = schema_name)
 
         self.close_connection()
-
-    def execute_query(self, query):
-        with self.engine.connect() as conn:
-            result = conn.execute(text(query))
-            conn.commit()
-            return result
 
     def write_dataframe(self, df, details):
         """
@@ -161,14 +142,15 @@ class PostgresqlDestination:
         temp_table = f"temp_{table_name}_{timestamp}"
 
         schema_handle = SchemaDriftHandle(db_name=self.db_name)
+        postgres_op = PostgresOperations(db_name=self.db_name)
 
         # Checking if schema exists/not.
-        schema_exists = schema_handle.check_schema_exists(details=details)
+        schema_exists = postgres_op.check_schema_exists(details=details)
         if not schema_exists:
-            self.create_schema(schema_name=schema_name)
+            postgres_op.create_schema(schema_name=schema_name)
 
         # Checking if table exists in the schema or not.
-        table_exists = schema_handle.check_table_exists(details=details)
+        table_exists = postgres_op.check_table_exists(details=details)
         print(f"Table {table_name} exists: {table_exists}")
         if not table_exists:
             # This will create table on its own and load to temp table
@@ -214,7 +196,7 @@ class PostgresqlDestination:
         self.merge_tables(details=details)
         print("Data Merged")
 
-        schema_handle.drop_table(table_name=temp_table, schema_name=schema_name)
+        postgres_op.drop_table(table_name=temp_table, schema_name=schema_name)
 
         self.close_connection()
 
@@ -227,65 +209,6 @@ class SchemaDriftHandle(PostgresqlDestination):
         super().__init__(self)
         super().__init__(db_name)
 
-    def check_schema_exists(self, details):
-        schema_name = details["schema_name"]
-        query = f"SELECT EXISTS (SELECT * FROM pg_catalog.pg_namespace where nspname = '{schema_name}');"
-        cur = self.execute_query(query=query)
-        result = cur.fetchone()[0]
-        return result
-
-    def check_table_exists(self, details):
-        table_name = details["table_name"]
-        schema_name = details["schema_name"]
-        query = f"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = '{schema_name}' AND table_name = '{table_name}');"
-        cur = self.execute_query(query=query)
-        result = cur.fetchone()[0]
-        return result
-
-    def create_table(self, df, details):
-        table_name = details["table_name"]
-        schema_name = details["schema_name"]
-        print(table_name)
-        print(schema_name)
-        df_col_datatypes = df.dtypes
-
-        columns = []
-        for df_colname, df_dtype in df_col_datatypes.items():
-            # here, we create a column definition to pass to sql query
-            postgres_type = self.map_df_dtype_to_postgres(df_dtype=df_dtype)
-            column_def = f"{df_colname} {postgres_type}"
-            columns.append(column_def)
-
-        columns_str = ", ".join(columns)
-        query = (
-            f"CREATE TABLE IF NOT EXISTS {schema_name}.{table_name} ({columns_str});"
-        )
-
-        self.execute_query(query=query)
-        print(f"Table with name {table_name} created...")
-
-    def select_existing_columns(self, details):
-        schema_name = details["schema_name"]
-        table_name = details["table_name"]
-        query = f"SELECT column_name FROM  information_schema.columns WHERE  table_schema = '{schema_name}' AND table_name = '{table_name}'"
-
-        cur = self.execute_query(query=query)
-        result = cur.fetchall()
-        return result
-
-    def drop_table(self, table_name, schema_name):
-        query = f"DROP TABLE {schema_name}.{table_name}"
-        self.execute_query(query=query)
-
-    def get_column_info(self, table_name, schema_name):
-        query = f"{QUERIES['get_column_properites']}".format(
-            schema_name=schema_name, table_name=table_name
-        )
-
-        cur = self.execute_query(query=query)
-        result = cur.fetchall()
-        column_properties = [json.loads(response[0]) for response in result]
-        return column_properties
 
     def check_schema_drift(self, df, details):
         with self.engine.connect() as conn:
@@ -294,17 +217,19 @@ class SchemaDriftHandle(PostgresqlDestination):
             timestamp = int(time.time())
             temp_table = f"temp_{table_name}_{timestamp}"
 
-            dest_column_info = self.get_column_info(
+            postgres_op = PostgresOperations(db_name=self.db_name)
+
+            dest_column_info = postgres_op.get_column_info(
                 table_name=table_name, schema_name=schema_name
             )
 
             df.to_sql(temp_table, schema=schema_name, con=conn, index=False)
 
-            source_column_info = self.get_column_info(
+            source_column_info = postgres_op.get_column_info(
                 table_name=temp_table, schema_name=schema_name
             )
 
-            self.drop_table(table_name=temp_table, schema_name=schema_name)
+            postgres_op.drop_table(table_name=temp_table, schema_name=schema_name)
 
             print(source_column_info)
 
@@ -336,15 +261,19 @@ class SchemaDriftHandle(PostgresqlDestination):
         schema_name = details["schema_name"]
         table_name = details["table_name"]
         dest_table = details["dest_table"]
+
+        postgres_op = PostgresOperations(db_name=self.db_name)
+
+
         if columns_to_add:
             for data in columns_to_add:
-                self.add_columns(
+                postgres_op.add_columns(
                     schema_name=schema_name,
                     table_name=table_name,
                     column_name=data["column_name"],
                     column_type=data["data_type"],
                 )
-                self.add_columns(
+                postgres_op.add_columns(
                     schema_name=schema_name,
                     table_name=dest_table,
                     column_name=data["column_name"],
@@ -354,10 +283,10 @@ class SchemaDriftHandle(PostgresqlDestination):
         if modified_cols:
             for data in modified_cols:
                 sql1 = f"ALTER TABLE {schema_name}.{table_name} ADD COLUMN IF NOT EXISTS {data['column_name']}_{str(data['data_type']).replace(' ', '_')} {data['data_type']}"
-                cur = self.execute_query(query=sql1)
+                cur = postgres_op.execute_query(query=sql1)
 
                 sql2 = f"ALTER TABLE {schema_name}.{dest_table} ADD COLUMN IF NOT EXISTS {data['column_name']}_{str(data['data_type']).replace(' ', '_')} {data['data_type']}"
-                cur = self.execute_query(query=sql2)
+                cur = postgres_op.execute_query(query=sql2)
 
                 df.rename(
                     columns={
@@ -369,9 +298,71 @@ class SchemaDriftHandle(PostgresqlDestination):
                 )
                 return cur
 
+   
+
+
+class PostgresOperations(PostgresqlDestination):
+    
+    def __init__(self,db_name) -> None:
+        super().__init__(self)
+        super().__init__(db_name)
+    
     def add_columns(self, schema_name, table_name, column_name, column_type):
         query = f"ALTER TABLE {schema_name}.{table_name} ADD COLUMN {column_name} {column_type};"
-
+        
         cur = self.execute_query(query=query)
         print(f"Added column {column_name} of type {column_type} to the table.")
         return cur
+    
+    def get_column_info(self, table_name, schema_name):
+        query = f"{QUERIES['get_column_properites']}".format(
+            schema_name=schema_name, table_name=table_name
+        )
+
+        cur = self.execute_query(query=query)
+        result = cur.fetchall()
+        column_properties = [json.loads(response[0]) for response in result]
+        return column_properties
+    
+    def drop_table(self, table_name, schema_name):
+        query = f"DROP TABLE {schema_name}.{table_name}"
+        self.execute_query(query=query)
+
+    def check_table_exists(self, details):
+        table_name = details["table_name"]
+        schema_name = details["schema_name"]
+        query = f"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = '{schema_name}' AND table_name = '{table_name}');"
+        cur = self.execute_query(query=query)
+        result = cur.fetchone()[0]
+        return result
+    
+    def check_schema_exists(self, details):
+        schema_name = details["schema_name"]
+        query = f"SELECT EXISTS (SELECT * FROM pg_catalog.pg_namespace where nspname = '{schema_name}');"
+        cur = self.execute_query(query=query)
+        result = cur.fetchone()[0]
+        return result
+    
+    def create_schema(self, schema_name):
+        """
+        This function creates schema in Postgres
+        Args:
+            schema_name: Takes name of schema
+        Returns:
+            conn:
+        """
+        with self.engine.connect() as conn:
+            query = f"create schema if not exists {schema_name};"
+            conn.execute(text(query))
+            conn.commit()
+            return conn
+        
+    def execute_query(self, query):
+        with self.engine.connect() as conn:
+            result = conn.execute(text(query))
+            conn.commit()
+            return result
+
+
+
+
