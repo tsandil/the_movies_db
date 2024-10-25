@@ -29,7 +29,6 @@ class PostgresqlDestination:
         """
 
 
-
         table_name = details['table_name']
         
         schema_name = details['schema_name']

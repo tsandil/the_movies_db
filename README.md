@@ -44,6 +44,8 @@ Configuration
 1. **API Key** : Add your TheMovieDB API key as an Airflow variable named ```the_moviedb_auth_key``` in Airflow's Admin > Variables.
 
 2. **PostgreSQL Connection** : Set up a PostgreSQL connection in Airflow with the connection ID ```themovies_con```.
+   - host: `host.docker.internal` if running from local machine
+   - database: `your_database`
 
 How to Run using Astro CLI
 =======

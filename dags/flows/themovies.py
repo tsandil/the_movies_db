@@ -95,12 +95,11 @@ def load_dataframe(ti):
 
         # postgres.write_dataframe(df = _df, details = details)
         postgres.merge_tables(df = df, details = details) 
-        
+
 
         print(f'Data was loaded successfully....')
     except Exception as e:
-        print(f"Data failed to load:\n {e}")
-        postgres.close_connection()
+        raise Exception(e)
 
 
 
