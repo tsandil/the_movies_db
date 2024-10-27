@@ -35,9 +35,9 @@ QUERIES = {
     'merge_to_table':"""
 
         MERGE INTO {schema_name}.{dest_table} as t1
-        USING 
+        USING
         (SELECT  * FROM {schema_name}.{table_name}) as t2
-        ON t1.id = t2.id
+        ON t1.{primary_key} = t2.{primary_key}
         WHEN MATCHED  and {update_cond} THEN
         UPDATE SET
         {update_columns}
