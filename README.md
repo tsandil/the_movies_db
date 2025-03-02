@@ -8,9 +8,17 @@ Features
 
 This ETL project contains the following features :
 - **API Integration** : Extracting popular movies data from [The Movie Database (TMDB) API](https://developer.themoviedb.org/reference/movie-popular-list)
+
 - **Data Transformation** : Cleaning and Transforming the data, including Timestamps and JSON formatting for specific columns. And, converting the extracted data into Pandas Dataframes.
+
 - **Schema Drift** - Detecting Structural Schema Drift in the target PostgreSQL database and handling structural schema drifts by dynamically adding columns and/or managing data-type changes if required.
+
+- **Dynamic Task Mapping** - Using Apache Airflow's `.expand()` and `.partial()` to create tasks dynamically based on different endpoints, improving the scalability.
+
+- **Parallel Processing** - Optimizing the ETL pipeline by running multiple tasks concurrently, reducing the execution time.
+
 - **Database Loading** : Loads data into a PostgreSQL database, managing schema and merging data into the target table.
+
 - **Orchestration** : Managed by Apache Airflow for reliable and scalable execution.
 
 Project Goals

@@ -13,9 +13,9 @@ from airflow.models import Variable
 from utilities import etl
 
 
-def extract_movies(ti):
+def extract_movies(endpoint, **kwargs):
+    ti = kwargs['ti']
     base_url = 'https://api.themoviedb.org/3/movie/'
-    endpoint= 'popular'
     auth_key = Variable.get('the_moviedb_auth_key')
 
     headers = {
@@ -27,6 +27,7 @@ def extract_movies(ti):
     results = []
 
     while True:
+        logging.info(f"The URL is : \n{url}")
         print(f"The URL is : \n{url}")
         response = requests.get(url=url, headers=headers)
 
@@ -38,37 +39,63 @@ def extract_movies(ti):
 
         _results = response.json()
         results += _results["results"]
-        page_num = _results["page"]+103
+        page_num = _results["page"] + 10
         url = f"{base_url}{endpoint}?page={page_num}"
 
     #Pushing the data from API using XCOMS
-    ti.xcom_push("movie_data", results)
+    ti.xcom_push(key = f"{endpoint}_movie_data", value = results)
+    logging.info(f"Data successfully pushed to XCom with key: {endpoint}_movie_data")
 
     return results
 
 
-def transform_data(ti):
-    logger = logging.getLogger(__name__)
-    result_data = ti.xcom_pull(key = "movie_data", task_ids = "task_extract")
+def transform_data(endpoint, **kwargs):
+    ti = kwargs['ti']
 
-    df = pd.DataFrame(result_data)
+    result_data = ti.xcom_pull(
+        key = f"{endpoint}_movie_data",
+        task_ids = "task_extract"
+        )
+    
+    if not result_data:
+        raise ValueError(f"No data pulled from XCom for endpoint: {endpoint}")
+
+    # Unpacking the data pulled from extract task as it passes LazySequenceSelector[1].
+    unpacked_list = [*result_data]
+    for data_ in unpacked_list:
+        print(f"The data after unpacking is : \n{data_}")
+        print(f"The type of unpacked data is : {type(data_)}")
+    
+    df = pd.DataFrame(data_)
 
     # Converting genre_ids to json format as it is an array that sqlalchemy engine cant load to postgres using postgres hook due to numpy.ndarray
     df['genre_ids'] = df['genre_ids'].apply(lambda x: json.dumps(x))
 
-    ti.xcom_push("api_df", df)
 
-    logger.info("This is a dataframe", df)
-    return df
+    ti.xcom_push(key = f"{endpoint}_api_df", value = df.to_dict(orient='records'))
+    logging.info(f"Data successfully pushed to XCom with key: {endpoint}_api_df")
 
 
-def load_dataframe(ti):
+def load_dataframe(endpoint, **kwargs):
+    ti = kwargs['ti']
 
-    df = ti.xcom_pull(key = "api_df", task_ids = "task_transform")
+    df_dict = ti.xcom_pull(key = f"{endpoint}_api_df", task_ids = f"task_transform")
 
+    if not df_dict:
+        raise ValueError(f"No data pulled from XCom for endpoint: {endpoint}")
+
+    # Unpacking the data from task transform as it passes LazySequenceSelector[1]
+    unpacked_list = [*df_dict]
+    for data in unpacked_list:
+        print(f"The data after unpacking is : \n {data}")
+        print(f"The type of unpacked data is : \n {type(data)}")
+
+    # Converting the unpacked data from task transform back to pandas dataframe for loading.
+    dataframe = pd.DataFrame(data)
+  
     schema_name = 'themoviedb'
-    db_name = 'my_database1' 
-    table_name = 'popular_movies'
+    db_name = 'raw_movie_data' 
+    table_name = f"{endpoint}_movies"
     primary_key = 'id'
 
     try:
@@ -81,7 +108,7 @@ def load_dataframe(ti):
 
         postgres = etl.PostgresqlDestination()
 
-        postgres.merge_tables(df = df, details = details) 
+        postgres.merge_tables(df = dataframe, details = details) 
 
     except Exception as e:
         raise Exception(e)
@@ -91,7 +118,7 @@ default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
     'retries': 1,
-    'retry_delay': timedelta(seconds=7),
+    'retry_delay': timedelta(seconds=3),
 }
 
 with DAG(
@@ -101,10 +128,29 @@ with DAG(
     description='A simple DAG implementation to extract and load themovies_db data',
     tags=["Data_Engineering", "ETL", "Movies ETL"],
     schedule='@daily'
-):
-    task_extract = PythonOperator(task_id = 'task_extract', python_callable = extract_movies, provide_context = True)
-    task_transform = PythonOperator(task_id = 'task_transform', python_callable=transform_data, provide_context = True)
-    task_load= PythonOperator(task_id = 'task_load', python_callable = load_dataframe, provide_context = True)
+) as dag:
+
+    endpoints = ['popular', 'top_rated', 'now_playing', 'upcoming']
+
+    extract_task = PythonOperator.partial(
+        task_id="task_extract",
+        python_callable=extract_movies,
+    ).expand(op_kwargs=[{"endpoint": endpoint} for endpoint in endpoints])
+
+    transform_task = PythonOperator.partial(
+        task_id="task_transform",
+        python_callable=transform_data,
+    ).expand(op_kwargs=[{"endpoint": endpoint} for endpoint in endpoints])
+
+    load_task = PythonOperator.partial(
+        task_id="task_load",
+        python_callable=load_dataframe,
+    ).expand(op_kwargs=[{"endpoint": endpoint} for endpoint in endpoints])
+
+    extract_task  >> transform_task >> load_task
 
 
-task_extract >> task_transform >> task_load
+
+
+
+
