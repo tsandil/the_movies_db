@@ -39,7 +39,7 @@ def extract_movies(endpoint, **kwargs):
 
         _results = response.json()
         results += _results["results"]
-        page_num = _results["page"] + 10
+        page_num = _results["page"] + 1
         url = f"{base_url}{endpoint}?page={page_num}"
 
     #Pushing the data from API using XCOMS
